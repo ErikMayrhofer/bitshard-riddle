@@ -1,0 +1,10 @@
+* She gets the RPI: What to do?
+  - Plug in and add keyboard etc...
+* She is at the login prompt: What to do?
+  - login as latexdork (is on a postit whatever) with pw ultracodex (not to corresponding cr episode like this CR112)
+
+
+Ideas:
+* Little piece of ZORK labyrinth
+* Labyrinth as a whole spells an answer
+* Cables on RPI connecten etc
