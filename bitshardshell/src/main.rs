@@ -157,7 +157,7 @@ fn main() {
         x: 0,
         y: 0,
         width: 20,
-        height: 20,
+        height: 10,
     };
 
     loop {
