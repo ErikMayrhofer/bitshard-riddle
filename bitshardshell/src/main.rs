@@ -3,7 +3,12 @@ use image::ImageBuffer;
 use image::Rgb;
 use ncurses::*;
 
+const O_C: char = '\0';
 const TILE_WALL: [[char; 3]; 3] = [['#', '#', '#'], ['#', 'O', '#'], ['#', '#', '#']];
+const TILE_WALL_O_N: [[char; 3]; 3] = [['━', '━', '━'], [O_C, O_C, O_C], [O_C, O_C, O_C]];
+const TILE_WALL_O_S: [[char; 3]; 3] = [[O_C, O_C, O_C], [O_C, O_C, O_C], ['━', '━', '━']];
+const TILE_WALL_O_E: [[char; 3]; 3] = [[O_C, O_C, O_C], [O_C, O_C, O_C], [O_C, O_C, O_C]];
+const TILE_WALL_O_W: [[char; 3]; 3] = [[O_C, O_C, O_C], [O_C, O_C, O_C], [O_C, O_C, O_C]];
 
 fn draw_tile<F>(tile: [[char; 3]; 3], render: F)
 where
@@ -11,7 +16,9 @@ where
 {
     for x in 0..3usize {
         for y in 0..3usize {
-            render(x as u32, y as u32, tile[x][y]);
+            if tile[y][x] != O_C {
+                render(x as u32, y as u32, tile[y][x]);
+            }
         }
     }
 }
@@ -70,7 +77,13 @@ impl World {
         let tile = self.tile_at(x, y);
 
         if let Tile::Wall = tile {
-            draw_tile(TILE_WALL, render);
+            draw_tile(TILE_WALL, &render);
+            if let Tile::Air = self.tile_at(x, y - 1) {
+                draw_tile(TILE_WALL_O_N, &render);
+            }
+            if let Tile::Air = self.tile_at(x, y + 1) {
+                draw_tile(TILE_WALL_O_S, &render);
+            }
         } else if let Tile::Air = tile {
             fill_tile(' ', render);
         } else {
@@ -98,7 +111,7 @@ impl Viewport {
                     let term_y = y * 3 + yoffs as i32 - subtile_y;
                     if term_x > 0 && term_y > 0 {
                         if term_x < self.width * 3 && term_y < self.height * 3 {
-                            mvaddch(term_y as i32, term_x as i32, ch as u32);
+                            mvaddstr(term_y as i32, term_x as i32, ch.to_string().as_ref());
                         }
                     }
                 });
