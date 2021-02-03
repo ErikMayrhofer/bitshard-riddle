@@ -4,11 +4,35 @@ use image::Rgb;
 use ncurses::*;
 
 const O_C: char = '\0';
-const TILE_WALL: [[char; 3]; 3] = [['#', '#', '#'], ['#', 'O', '#'], ['#', '#', '#']];
-const TILE_WALL_O_N: [[char; 3]; 3] = [['━', '━', '━'], [O_C, O_C, O_C], [O_C, O_C, O_C]];
-const TILE_WALL_O_S: [[char; 3]; 3] = [[O_C, O_C, O_C], [O_C, O_C, O_C], ['━', '━', '━']];
-const TILE_WALL_O_E: [[char; 3]; 3] = [[O_C, O_C, O_C], [O_C, O_C, O_C], [O_C, O_C, O_C]];
-const TILE_WALL_O_W: [[char; 3]; 3] = [[O_C, O_C, O_C], [O_C, O_C, O_C], [O_C, O_C, O_C]];
+const CHAR_UNKNOWN: char = '≋';
+const CHAR_WALL_V: char = '│';
+const CHAR_WALL_H: char = '─';
+const CHAR_SOLID: char = '∷';
+const TILE_WALL: [[char; 3]; 3] = [
+    [CHAR_SOLID, CHAR_SOLID, CHAR_SOLID],
+    [CHAR_SOLID, CHAR_SOLID, CHAR_SOLID],
+    [CHAR_SOLID, CHAR_SOLID, CHAR_SOLID],
+];
+const TILE_WALL_O_N: [[char; 3]; 3] = [
+    [CHAR_WALL_H, CHAR_WALL_H, CHAR_WALL_H],
+    [O_C, O_C, O_C],
+    [O_C, O_C, O_C],
+];
+const TILE_WALL_O_S: [[char; 3]; 3] = [
+    [O_C, O_C, O_C],
+    [O_C, O_C, O_C],
+    [CHAR_WALL_H, CHAR_WALL_H, CHAR_WALL_H],
+];
+const TILE_WALL_O_E: [[char; 3]; 3] = [
+    [O_C, O_C, CHAR_WALL_V],
+    [O_C, O_C, CHAR_WALL_V],
+    [O_C, O_C, CHAR_WALL_V],
+];
+const TILE_WALL_O_W: [[char; 3]; 3] = [
+    [CHAR_WALL_V, O_C, O_C],
+    [CHAR_WALL_V, O_C, O_C],
+    [CHAR_WALL_V, O_C, O_C],
+];
 
 fn draw_tile<F>(tile: [[char; 3]; 3], render: F)
 where
@@ -33,7 +57,7 @@ where
         }
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Tile {
     Air,
     Wall,
@@ -54,6 +78,9 @@ struct World {
     width: u32,
     height: u32,
 }
+
+//const CORNERS: [[char; 2]; 2] = [['┏', '┓'], ['┗', '┛']];
+const CORNERS: [[char; 2]; 2] = [['╭', '╮'], ['╰', '╯']];
 
 impl World {
     fn from(image: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Self {
@@ -84,10 +111,41 @@ impl World {
             if let Tile::Air = self.tile_at(x, y + 1) {
                 draw_tile(TILE_WALL_O_S, &render);
             }
+            if let Tile::Air = self.tile_at(x + 1, y) {
+                draw_tile(TILE_WALL_O_E, &render);
+            }
+            if let Tile::Air = self.tile_at(x - 1, y) {
+                draw_tile(TILE_WALL_O_W, &render);
+            }
+            for a in 0..2 {
+                for b in 0..2 {
+                    //Operating on Corner a*2, b*2
+
+                    let x_shoot = a * 2 - 1;
+                    let y_shoot = b * 2 - 1;
+                    //d
+                    let check_x = self.tile_at(x + x_shoot, y) == Tile::Air;
+                    let check_xy = self.tile_at(x + x_shoot, y + y_shoot) == Tile::Air;
+                    let check_y = self.tile_at(x, y + y_shoot) == Tile::Air;
+
+                    let val = check_x as u8 + check_y as u8 * 2u8 + check_xy as u8 * 4u8;
+
+                    if val == 4 {
+                        render(
+                            a as u32 * 2,
+                            b as u32 * 2,
+                            CORNERS[1 - b as usize][1 - a as usize],
+                        );
+                    }
+                    if val == 3 || val == 7 {
+                        render(a as u32 * 2, b as u32 * 2, CORNERS[b as usize][a as usize]);
+                    }
+                }
+            }
         } else if let Tile::Air = tile {
             fill_tile(' ', render);
         } else {
-            fill_tile('?', render);
+            fill_tile(CHAR_UNKNOWN, render);
         }
     }
 }
@@ -104,6 +162,14 @@ impl Viewport {
         let subtile_x = self.x % 3;
         let subtile_y = self.y % 3;
 
+        let mut width = 0;
+        let mut height = 0;
+
+        getmaxyx(stdscr(), &mut height, &mut width);
+
+        let originX = width / 2 - self.width * 3 / 2;
+        let originY = height / 2 - self.height * 3 / 2;
+
         for x in 0i32..self.width as i32 + 3 {
             for y in 0i32..self.height as i32 + 3 {
                 world.draw(x + self.x / 3, y + self.y / 3, |xoffs, yoffs, ch| {
@@ -111,14 +177,18 @@ impl Viewport {
                     let term_y = y * 3 + yoffs as i32 - subtile_y;
                     if term_x > 0 && term_y > 0 {
                         if term_x < self.width * 3 && term_y < self.height * 3 {
-                            mvaddstr(term_y as i32, term_x as i32, ch.to_string().as_ref());
+                            mvaddstr(
+                                originY + term_y as i32,
+                                originX + term_x as i32,
+                                ch.to_string().as_ref(),
+                            );
                         }
                     }
                 });
             }
         }
 
-        mvaddstr(self.height / 2, self.width / 2, "תּ");
+        mvaddstr(self.height / 2 * 3, self.width / 2 * 3, "תּ");
         curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
     }
 
